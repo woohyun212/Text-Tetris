@@ -239,6 +239,8 @@ int load_results_count(void);
 struct result* load_results(void);
 
 char get_next_block_char(void);
+int compute_ghost_y(void);
+
 
 /// 테트리스 게임 메인 함수
 /// 메뉴를 표시하고 사용자의 선택에 따라 게임을 시작하거나 결과를 검색하거나 종료합니다.
@@ -358,38 +360,65 @@ void disable_raw_mode(void)
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 }
 
-void draw_table(void)
-{
+void draw_table(void) {
     int i, j;
+    // 1) 고스트 y 계산
+    int ghost_y = compute_ghost_y();
 
-    // 커서 맨 위로 이동 (ANSI escape code)
-    // clear_screen();
-    printf("\033[H\t\t\t");
+    // 2) 커서 맨 위로 이동
+    printf("\033[H");
+    printf("\t\t\t");
 
+    for (i = 0; i < 21; i++) {
+        for (j = 0; j < 10; j++) {
+            // (가) 먼저 고정 블록(3)과 벽/바닥(1)은 그대로 출력
+            if (tetris_table[i][j] == 1) {
+                // 벽/바닥
+                printf("🔲");
+            }
+            else if (tetris_table[i][j] == 3) {
+                // 이미 고정된 블록
+                printf("⬜");
+            }
+            else {
+                // (나) 빈 칸일 때, 고스트와 겹치는지 확인
+                int printed = 0;
 
-    for (i = 0; i < 21; i++)
-    {
-        for (j = 0; j < 10; j++)
-        {
-            if (tetris_table[i][j] == 0)
-            {
-                printf("⬛"); // 빈 칸 (스페이스 두 칸)
-            }
-            else if (tetris_table[i][j] == 1)
-            {
-                printf("🔲"); // 벽 또는 바닥
-            }
-            else if (tetris_table[i][j] == 2)
-            {
-                printf("🔳"); // 움직이는 블록 (선택적 표시)
-            }
-            else if (tetris_table[i][j] == 3)
-            {
-                printf("⬜"); // 고정된 블록 (선택적 구분)
+                // 고스트 블록도 4×4 기준이므로, 블록 모양 배열을 참조
+                char (*shape)[4] = (*blocks[block_number])[block_state];
+                // 블록의 4×4 셀 중, i와 j가 고스트 위치의 블록 셀인지 확인
+                // 고스트가 y = ghost_y이고, x = x 이므로
+                for (int bi = 0; bi < 4 && !printed; bi++) {
+                    for (int bj = 0; bj < 4; bj++) {
+                        if (shape[bi][bj]) {
+                            int gi = ghost_y + bi;
+                            int gj = x + bj;
+                            if (gi == i && gj == j) {
+                                // (i, j)가 고스트가 찍힐 자리라면 🟪 찍기
+                                printf("🟪");
+                                printed = 1;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (printed) {
+                    continue;
+                }
+
+                // (다) 그 외: 현재 낙하 중인 블록(값 2)은 기존대로 🔳
+                if (tetris_table[i][j] == 2) {
+                    printf("🔳");
+                }
+                // 그냥 빈 칸이면 검정 배경(⬛)으로 출력
+                else {
+                    printf("⬛");
+                }
             }
         }
         printf("\n\t\t\t");
     }
+
     // 점수 등 정보 출력
     printf("\n\t\t\tScore: %ld   Next: %c\n", point, get_next_block_char());
     printf("\t\t\tBest Score: %ld\n", best_point);
@@ -952,4 +981,14 @@ char get_next_block_char()
     default:
         return '?';
     }
+}
+
+// (현재 블록이 충돌 직전에 멈출 y 좌표를 반환)
+int compute_ghost_y(void) {
+    int test_y = y;
+    // 충돌이 발생할 때까지 y를 한 칸씩 내린다.
+    while (!is_collision(test_y + 1, x, block_state)) {
+        test_y++;
+    }
+    return test_y;
 }
