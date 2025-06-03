@@ -48,6 +48,7 @@
 #define CLEAR_SCREEN_CMD "clear"
 #endif
 
+#define MAX_NAME_LEN 30
 
 /*
  * 블록 모양(I, T, S, Z, L, J, O)
@@ -120,26 +121,33 @@ char l_block[4][4][4] =
 
 char j_block[4][4][4] =
 {
-    {{0, 1, 0, 0},
+    {
+        {0, 1, 0, 0},
         {0, 1, 0, 0},
         {1, 1, 0, 0},
-        {0, 0, 0, 0}},
+        {0, 0, 0, 0}
+    },
 
-    {{1, 0, 0, 0},
+    {
+        {1, 0, 0, 0},
         {1, 1, 1, 0},
         {0, 0, 0, 0},
-        {0, 0, 0, 0}},
+        {0, 0, 0, 0}
+    },
 
-    {{1, 1, 0, 0},
+    {
+        {1, 1, 0, 0},
         {1, 0, 0, 0},
         {1, 0, 0, 0},
-        {0, 0, 0, 0}},
+        {0, 0, 0, 0}
+    },
 
     {
         {1, 1, 1, 0},
         {0, 0, 1, 0},
         {0, 0, 0, 0},
-        {0, 0, 0, 0}}
+        {0, 0, 0, 0}
+    }
 };
 
 
@@ -169,7 +177,7 @@ char tetris_table[21][10];
  * */
 static struct result
 {
-    char name[30];
+    char name[MAX_NAME_LEN];
     long point;
     int year;
     int month;
@@ -182,7 +190,7 @@ static struct result
 int block_number = 0; /*블록 번호*/
 int next_block_number = 0; /*다음 블록 번호 */
 int block_state = 0; /*블록 상태, 왼쪽, 오른쪽, 아래, 회전  */
-int x = 4, y = 0; /*블록의 위치*/
+int x = 3, y = 0; /*블록의 위치*/
 int game = GAME_END; /*게임 시작, 게임 종료*/
 long best_point = 0; /* 최고 점수*/
 long point = 0; /* 현재 점수*/
@@ -203,7 +211,7 @@ int display_menu(void); /* 메뉴 표시*/
 
 int game_start(void); // 게임 시작
 void search_result(void); // Search history
-void print_result(void); //  Record Output
+void record_output(void); //  Record Output
 
 void enable_raw_mode(void); // 터미널 입력 모드 non-canonical
 void disable_raw_mode(void); // 터미널 입력 모드 canonical
@@ -212,8 +220,7 @@ void init_table(void); // 게임보드 초기화
 void draw_table(void); // 게임보드 그리기
 void clear_screen(void); // 화면 지우기
 void clear_lines(void); // 줄 지우기
-void lock_block(void);
-void clear_line(void);
+void lock_block(void); // 블럭 놓기
 int get_key(void);
 void process_key(int key);
 void alarm_handler(int signum);
@@ -221,9 +228,51 @@ void init_timer(void);
 void stop_timer(void);
 void spawn_block(void);
 void place_block(void);
+
 void save_result(void);
+
 void press_any_key(void);
-void load_best_record(void);
+
+void load_best_point(void);
+void sort_record(void);
+int load_results_count(void);
+struct result* load_results(void);
+
+char get_next_block_char(void);
+
+/// 테트리스 게임 메인 함수
+/// 메뉴를 표시하고 사용자의 선택에 따라 게임을 시작하거나 결과를 검색하거나 종료합니다.
+/// @param
+/// @return
+int main(void)
+{
+    int menu = 1;
+    load_best_point();
+    while (menu)
+    {
+        menu = display_menu();
+
+        if (menu == 1)
+        {
+            game = GAME_START;
+            menu = game_start();
+        }
+        else if (menu == 2)
+        {
+            search_result();
+        }
+        else if (menu == 3)
+        {
+            record_output();
+        }
+        else if (menu == 4)
+        {
+            exit(0);
+        }
+    }
+
+    return 0;
+}
 
 void clear_screen(void)
 {
@@ -269,11 +318,17 @@ int game_start(void)
     disable_raw_mode();
 
     // 게임 오버 메시지
-    printf("\nGame Over! Your score: %ld\n", point);
+    clear_screen();
+    printf("\033[H\t\t\t");
+    printf("\n\t\t\t");
+    printf("\n\t\t\t============================");
+    printf("\n\t\t\t\tGAME OVER\t");
+    printf("\n\t\t\t============================");
+    printf("\n\t\t\t\tYour score: %ld\n", point);
 
     if (point > best_point)
     {
-        printf("\nBest Record!\n");
+        printf("\n\t\t\tBest Record!\n");
         best_point = point;
         // best_point 저장 로직 삽입 가능 (파일 I/O 등)
     }
@@ -282,54 +337,6 @@ int game_start(void)
     press_any_key();
     // 메뉴로 돌아가려면 1 또는 0 반환
     return 1;
-}
-
-void search_result(void)
-{
-}
-
-void load_best_record(void)
-{
-    FILE* fp;
-    char name[30];
-    long sc;
-    int yy, mm, dd, hh, mi;
-    fp = fopen("results.txt", "r");
-    if (!fp)
-    {
-        return;
-    }
-    while (fscanf(fp, "%s %ld %d %d %d %d %d",
-                  name, &sc, &yy, &mm, &dd, &hh, &mi) == 7)
-    {
-        if (best_point < sc)best_point = sc;
-    }
-    fclose(fp);
-}
-
-void print_result(void)
-{
-    FILE* fp;
-    char name[30];
-    long sc;
-    int yy, mm, dd, hh, mi;
-    printf("\n-- All Records --\n");
-    fp = fopen("results.txt", "r");
-    if (!fp)
-    {
-        printf("No records found.\n");
-        press_any_key();
-        return;
-    }
-    while (fscanf(fp, "%s %ld %d %d %d %d %d",
-                  name, &sc, &yy, &mm, &dd, &hh, &mi) == 7)
-    {
-        printf("%s\t%ld\t%04d-%02d-%02d %02d:%02d\n",
-               name, sc, yy, mm, dd, hh, mi);
-    }
-    fclose(fp);
-    printf("------------------\n");
-    press_any_key();
 }
 
 /* 원래 터미널 속성 저장 */
@@ -356,7 +363,9 @@ void draw_table(void)
     int i, j;
 
     // 커서 맨 위로 이동 (ANSI escape code)
+    // clear_screen();
     printf("\033[H\t\t\t");
+
 
     for (i = 0; i < 21; i++)
     {
@@ -364,25 +373,25 @@ void draw_table(void)
         {
             if (tetris_table[i][j] == 0)
             {
-                printf("  "); // 빈 칸 (스페이스 두 칸)
+                printf("⬛"); // 빈 칸 (스페이스 두 칸)
             }
             else if (tetris_table[i][j] == 1)
             {
-                printf("□ "); // 벽 또는 바닥
+                printf("🔲"); // 벽 또는 바닥
             }
             else if (tetris_table[i][j] == 2)
             {
-                printf("▦ "); // 움직이는 블록 (선택적 표시)
+                printf("🔳"); // 움직이는 블록 (선택적 표시)
             }
             else if (tetris_table[i][j] == 3)
             {
-                printf("▢ "); // 고정된 블록 (선택적 구분)
+                printf("⬜"); // 고정된 블록 (선택적 구분)
             }
         }
         printf("\n\t\t\t");
     }
     // 점수 등 정보 출력
-    printf("\n\t\t\tScore: %ld   Next: %d\n", point, next_block_number);
+    printf("\n\t\t\tScore: %ld   Next: %c\n", point, get_next_block_char());
     printf("\t\t\tBest Score: %ld\n", best_point);
 }
 
@@ -415,7 +424,7 @@ void spawn_block(void)
     block_number = next_block_number;
     next_block_number = rand() % 7;
     block_state = 0;
-    x = 4;
+    x = 3;
     y = 0;
 }
 
@@ -663,16 +672,21 @@ void stop_timer(void)
 
 void save_result(void)
 {
+    // 덮어쓰기 전에 메모리로 올려서 저장
+    int result_counts = load_results_count();
+    struct result* results = load_results();
     FILE* fp;
-    fp = fopen("results.txt", "a");
-    if (!fp) return;
 
     // 현재 시간 받아오기
     time_t t = time(NULL);
     struct tm* tm_info = localtime(&t);
 
-    printf("Enter your name: ");
+    printf("\n\t\t\tEnter your name: ");
     scanf("%s", temp_result.name);
+
+    // 덮어쓸 거니까, write
+    fp = fopen("results.txt", "w");
+    if (!fp) return;
 
     temp_result.point = point;
     temp_result.year = tm_info->tm_year + 1900;
@@ -680,14 +694,42 @@ void save_result(void)
     temp_result.day = tm_info->tm_mday;
     temp_result.hour = tm_info->tm_hour;
     temp_result.min = tm_info->tm_min;
-    temp_result.rank = 0; // 순위는 나중에 읽어들인 뒤 계산하거나 생략 가능
+    temp_result.rank = 1; // 순위는 나중에 읽어들인 뒤 계산하거나 생략 가능
 
-    // 파일에 쓰기 (예: 이름,점수,연,월,일,시,분)
-    fprintf(fp, "%s %ld %04d %02d %02d %02d %02d\n",
-            temp_result.name, temp_result.point,
-            temp_result.year, temp_result.month, temp_result.day,
-            temp_result.hour, temp_result.min);
+    if (results == NULL)
+        fprintf(fp, "%d\t%s\t%ld\t%04d\t%02d\t%02d\t%02d\t%02d\n",
+                temp_result.rank, temp_result.name, temp_result.point,
+                temp_result.year, temp_result.month, temp_result.day,
+                temp_result.hour, temp_result.min);
+
+    else
+    {
+        int i;
+        // 순위 높으면 그대로 출력
+        for (i = 0; i < result_counts; i++)
+        {
+            if (results[i].point <= temp_result.point)break;
+            // 파일에 쓰기 (예: 순위,이름,점수,연,월,일,시,분)
+            fprintf(fp, "%d\t%s\t%ld\t%04d\t%02d\t%02d\t%02d\t%02d\n",
+                    results[i].rank, results[i].name, results[i].point,
+                    results[i].year, results[i].month, results[i].day,
+                    results[i].hour, results[i].min);
+        }
+        // 내 순위 출력, 1+i(기존 인덱스) = 순위
+        fprintf(fp, "%d\t%s\t%ld\t%04d\t%02d\t%02d\t%02d\t%02d\n",
+                i + 1, temp_result.name, temp_result.point,
+                temp_result.year, temp_result.month, temp_result.day,
+                temp_result.hour, temp_result.min);
+        for (; i < result_counts; i++)
+        {
+            fprintf(fp, "%d\t%s\t%ld\t%04d\t%02d\t%02d\t%02d\t%02d\n",
+                    results[i].rank + 1, results[i].name, results[i].point,
+                    results[i].year, results[i].month, results[i].day,
+                    results[i].hour, results[i].min);
+        }
+    }
     fclose(fp);
+    free(results);
 }
 
 /* 메뉴 표시*/
@@ -701,7 +743,7 @@ int display_menu(void)
         clear_screen(); // system("clear");
         printf("\n\n\t\t\t\tText Tetris");
         printf("\n\t\t\t============================");
-        printf("\n\t\t\t\tGAME MENU\t\n");
+        printf("\n\t\t\t\tGAME MENU\t");
         printf("\n\t\t\t============================");
         printf("\n\t\t\t   1) Game Start");
         printf("\n\t\t\t   2) Search history");
@@ -728,42 +770,8 @@ int display_menu(void)
     return 0;
 }
 
-
-/// 테트리스 게임 메인 함수
-/// 메뉴를 표시하고 사용자의 선택에 따라 게임을 시작하거나 결과를 검색하거나 종료합니다.
-/// @param
-/// @return
-int main(void)
+void press_any_key(void)
 {
-    int menu = 1;
-    load_best_record();
-    while (menu)
-    {
-        menu = display_menu();
-
-        if (menu == 1)
-        {
-            game = GAME_START;
-            menu = game_start();
-        }
-        else if (menu == 2)
-        {
-            search_result();
-        }
-        else if (menu == 3)
-        {
-            print_result();
-        }
-        else if (menu == 4)
-        {
-            exit(0);
-        }
-    }
-
-    return 0;
-}
-
-void press_any_key(void) {
     struct termios oldt, raw;
 
     // 1) 현재 터미널 설정을 가져와서 저장
@@ -774,14 +782,14 @@ void press_any_key(void) {
     //    ICANON을 끄면 입력 버퍼링(엔터 대기)이 해제되고,
     //    ECHO를 끄면 키를 누를 때 화면에 출력되지 않음
     raw.c_lflag &= ~(ICANON | ECHO);
-    raw.c_cc[VMIN] = 1;   // 최소 1글자만 읽어도 바로 리턴
-    raw.c_cc[VTIME] = 0;  // 타임아웃 없음(무한 대기)
+    raw.c_cc[VMIN] = 1; // 최소 1글자만 읽어도 바로 리턴
+    raw.c_cc[VTIME] = 0; // 타임아웃 없음(무한 대기)
 
     // 3) 터미널을 raw 모드로 변경
     tcsetattr(STDIN_FILENO, TCSANOW, &raw);
 
     // 4) 사용자에게 메시지 출력
-    printf("Press any key to continue...");
+    printf("\n\t\t\tPress any key to continue...");
     fflush(stdout);
 
     // 5) 한 글자만 읽어오기 (엔터 없이 바로 리턴)
@@ -795,4 +803,153 @@ void press_any_key(void) {
     //   여기서는 단순히 아무 키나 누르면 빠져나오도록 함.)
 }
 
+void search_result(void)
+{
+    char search_name[MAX_NAME_LEN];
+    clear_screen(); // system("clear");
+    printf("\n\n\t\t\t\tText Tetris");
+    printf("\n\t\t\t============================");
+    printf("\n\t\t\t\tSearch history");
+    printf("\n\t\t\t============================");
+    printf("\n\t\t\t\tEnter name : ");
+    scanf("%s", search_name);
 
+    FILE* fp;
+    char name[MAX_NAME_LEN];
+    long sc;
+    int rank, yy, mm, dd, hh, mi;
+    fp = fopen("results.txt", "r");
+    if (!fp)
+    {
+        printf("\n\t\t\tNo records found.\n");
+        press_any_key();
+        return;
+    }
+    printf("\t\t\tRank\tName\tPoint\tDate");
+    while (fscanf(fp, "%d\t%s\t%ld\t%04d\t%02d\t%02d\t%02d\t%02d",
+                  &rank, name, &sc, &yy, &mm, &dd, &hh, &mi) == 8)
+    {
+        if (!strcmp(search_name, name))
+            printf("\n\t\t\t%d\t%s\t%ld\t%04d-%02d-%02d %02d:%02d",
+                   rank, name, sc, yy, mm, dd, hh, mi);
+    }
+    fclose(fp);
+    printf("\n\t\t\t============================\n");
+
+    press_any_key();
+}
+
+void load_best_point(void)
+{
+    FILE* fp;
+    char name[MAX_NAME_LEN];
+    long sc;
+    int rank, yy, mm, dd, hh, mi;
+    fp = fopen("results.txt", "r");
+    if (!fp)
+    {
+        return;
+    }
+    while (fscanf(fp, "%d\t%s\t%ld\t%04d\t%02d\t%02d\t%02d\t%02d",
+                  &rank, name, &sc, &yy, &mm, &dd, &hh, &mi) == 8)
+    {
+        if (best_point < sc)best_point = sc;
+    }
+    fclose(fp);
+}
+
+int load_results_count(void)
+{
+    int count = 0;
+
+    FILE* fp;
+    char name[MAX_NAME_LEN];
+    long sc;
+    int rank, yy, mm, dd, hh, mi;
+    fp = fopen("results.txt", "r");
+    if (!fp)
+    {
+        return 0;
+    }
+    while (fscanf(fp, "%d\t%s\t%ld\t%04d\t%02d\t%02d\t%02d\t%02d",
+                  &rank, name, &sc, &yy, &mm, &dd, &hh, &mi) == 8)
+    {
+        count++;
+    }
+    fclose(fp);
+    return count;
+}
+
+struct result* load_results(void)
+{
+    int result_counts = load_results_count();
+    struct result* results = malloc(sizeof(struct result) * result_counts);
+    FILE* fp;
+    fp = fopen("results.txt", "r");
+    if (!fp || result_counts == 0)
+    {
+        return NULL;
+    }
+    for (int i = 0; i < result_counts; ++i)
+    {
+        fscanf(fp, "%d\t%s\t%ld\t%04d\t%02d\t%02d\t%02d\t%02d",
+               &results[i].rank, results[i].name, &results[i].point,
+               &results[i].year, &results[i].month, &results[i].day,
+               &results[i].hour, &results[i].min);
+    }
+    fclose(fp);
+    return results;
+}
+
+void record_output(void)
+{
+    FILE* fp;
+    char name[MAX_NAME_LEN];
+    long point;
+    int rank, yy, mm, dd, hh, mi;
+    clear_screen();
+    printf("\n\n\t\t\t\tText Tetris");
+    printf("\n\t\t\t============================");
+    printf("\n\t\t\t\tAll Records\t");
+    printf("\n\t\t\t============================\n");
+    fp = fopen("results.txt", "r");
+    if (!fp)
+    {
+        printf("\n\t\t\tNo records found.\n");
+        press_any_key();
+        return;
+    }
+    printf("\t\t\tRank\tName\tPoint\tDate\n");
+    while (fscanf(fp, "%d\t%s\t%ld\t%04d\t%02d\t%02d\t%02d\t%02d",
+                  &rank, name, &point, &yy, &mm, &dd, &hh, &mi) == 8)
+    {
+        printf("\t\t\t%d\t%s\t%ld\t%04d-%02d-%02d %02d:%02d\n",
+               rank, name, point, yy, mm, dd, hh, mi);
+    }
+    fclose(fp);
+    printf("\t\t\t============================\n");
+    press_any_key();
+}
+
+char get_next_block_char()
+{
+    switch (next_block_number)
+    {
+    case 0:
+        return 'i';
+    case 1:
+        return 't';
+    case 2:
+        return 's';
+    case 3:
+        return 'z';
+    case 4:
+        return 'l';
+    case 5:
+        return 'j';
+    case 6:
+        return 'o';
+    default:
+        return '?';
+    }
+}
