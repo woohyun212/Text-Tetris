@@ -184,7 +184,7 @@ int next_block_number = 0; /*다음 블록 번호 */
 int block_state = 0; /*블록 상태, 왼쪽, 오른쪽, 아래, 회전  */
 int x = 4, y = 0; /*블록의 위치*/
 int game = GAME_END; /*게임 시작, 게임 종료*/
-int best_point = 0; /* 최고 점수*/
+long best_point = 0; /* 최고 점수*/
 long point = 0; /* 현재 점수*/
 
 /* 터미널 입출력 제어를 위한 원래 터미널 설정 저장 */
@@ -223,7 +223,7 @@ void spawn_block(void);
 void place_block(void);
 void save_result(void);
 void press_any_key(void);
-
+void load_best_record(void);
 
 void clear_screen(void)
 {
@@ -286,6 +286,25 @@ int game_start(void)
 
 void search_result(void)
 {
+}
+
+void load_best_record(void)
+{
+    FILE* fp;
+    char name[30];
+    long sc;
+    int yy, mm, dd, hh, mi;
+    fp = fopen("results.txt", "r");
+    if (!fp)
+    {
+        return;
+    }
+    while (fscanf(fp, "%s %ld %d %d %d %d %d",
+                  name, &sc, &yy, &mm, &dd, &hh, &mi) == 7)
+    {
+        if (best_point < sc)best_point = sc;
+    }
+    fclose(fp);
 }
 
 void print_result(void)
@@ -363,7 +382,8 @@ void draw_table(void)
         printf("\n\t\t\t");
     }
     // 점수 등 정보 출력
-    printf("Score: %ld   Next: %d\n", point, next_block_number);
+    printf("\n\t\t\tScore: %ld   Next: %d\n", point, next_block_number);
+    printf("\t\t\tBest Score: %ld\n", best_point);
 }
 
 void init_table(void)
@@ -716,7 +736,7 @@ int display_menu(void)
 int main(void)
 {
     int menu = 1;
-
+    load_best_record();
     while (menu)
     {
         menu = display_menu();
@@ -776,4 +796,3 @@ void press_any_key(void) {
 }
 
 
-// TODO: 프로그램 실행시
