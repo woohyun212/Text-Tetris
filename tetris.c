@@ -3,14 +3,24 @@
 //
 #include <stdio.h>
 #include <stdlib.h>
-#include <signal.h>
 #include <string.h>
-#include <sys/time.h>
-#include <termios.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
 #include <time.h>
+
+#ifdef _WIN32
+    #include "termios.h"
+    #include <windows.h>
+    #include <conio.h>
+    #define CLEAR_SCREEN_CMD "cls"
+#else
+    #include <termios.h>
+    #include <unistd.h>
+    #include <signal.h>
+    #include <sys/time.h>
+    #define CLEAR_SCREEN_CMD "clear"
+#endif
+// #include <sys/ioctl.h>
+// #include <sys/types.h>
+// 굳이 필요한가.
 
 /* 타이머  */
 #define CCHAR 0
@@ -40,13 +50,6 @@
 /* 게임 시작, 게임 종료 */
 #define GAME_START 0
 #define GAME_END 1
-
-// 화면 지우는 명령어
-#ifdef _WIN32
-  #define CLEAR_SCREEN_CMD "cls"
-#else
-#define CLEAR_SCREEN_CMD "clear"
-#endif
 
 #define MAX_NAME_LEN 30
 
@@ -198,9 +201,17 @@ long point = 0; /* 현재 점수*/
 /* 터미널 입출력 제어를 위한 원래 터미널 설정 저장 */
 struct termios orig_termios;
 
-/* 타이머용 변수 */
-struct itimerval timer;
 
+#ifdef _WIN32
+/* Windows 환경에서는 타이머 관련 변수가 필요 없으므로 선언하지 않음. */
+#else
+/* POSIX(macOS/Linux) 전용 타이머용 변수 */
+struct itimerval timer;
+void alarm_handler(int signum);
+void init_timer(void);
+void stop_timer(void);
+
+#endif
 /* 블록 모양 포인터 배열로 묶어 두기 */
 char (*blocks[7])[4][4][4] = {
     &i_block, &t_block, &s_block, &z_block, &l_block, &j_block, &o_block
@@ -219,15 +230,20 @@ void disable_raw_mode(void); // 터미널 입력 모드 canonical
 void init_table(void); // 게임보드 초기화
 void draw_table(void); // 게임보드 그리기
 void clear_screen(void); // 화면 지우기
+void set_random_block(void); //
+void place_block(void);
+void remove_block(void);
+int is_collision(int newY, int newX, int newState);
+void move_left(void);
+void move_right(void);
+void move_down(void);
+void rotate_block(void);
 void clear_lines(void); // 줄 지우기
 void lock_block(void); // 블럭 놓기
 int get_key(void);
 void process_key(int key);
-void alarm_handler(int signum);
-void init_timer(void);
-void stop_timer(void);
-void spawn_block(void);
-void place_block(void);
+
+
 
 void save_result(void);
 
@@ -248,6 +264,10 @@ int compute_ghost_y(void);
 /// @return
 int main(void)
 {
+#ifdef _WIN32
+        // Windows 콘솔을 UTF-8(65001)로 설정 (복구 코드 제거)
+    SetConsoleOutputCP(CP_UTF8);
+#endif
     int menu = 1;
     load_best_point();
     while (menu)
@@ -286,6 +306,7 @@ int game_start(void)
     // 1) 터미널 설정
     enable_raw_mode();
     // 화면 완전히 지우기 (ANSI 코드)
+    clear_screen();
     printf("\033[2J");
     printf("\033[H");
 
@@ -293,30 +314,52 @@ int game_start(void)
     init_table();
     srand((unsigned int)time(NULL));
     next_block_number = rand() % 7;
-    spawn_block();
+    set_random_block();
     place_block();
 
     // 3) 스크린 그리기
     draw_table();
 
-    // 4) 타이머 설정
+#ifndef _WIN32
     init_timer();
+    usleep(50 * 1000);
+#else
+            // Windows용 타이머: 마지막으로 블록을 내린 시점(ms 단위)
+    DWORD lastFall = GetTickCount();
+    const DWORD fallInterval = 500;  // 500ms마다 자동 낙하
 
-    // 5) 메인 루프
     while (game == GAME_START)
     {
+        // 1. 키 입력 처리
         int key = get_key();
         if (key != -1)
         {
             process_key(key);
             draw_table();
         }
-        // 짧은 usleep으로 CPU 사용률 낮추기
-        usleep(50 * 1000); // 50ms
+
+        // 2. 자동 낙하 타이밍 체크
+        DWORD now = GetTickCount();
+        if (now - lastFall >= fallInterval)
+        {
+            // fallInterval(예: 500ms) 경과했으면 블록 한 칸 아래로
+            move_down();
+            draw_table();
+            lastFall = now;
+        }
+
+        // 3. CPU 사용률 절감
+        Sleep(20);  // 20ms 대기 (필요에 따라 조절)
     }
 
-    // 6) 게임 종료 처리
+
+#endif
+
+
+#ifndef _WIN32
     stop_timer();
+#endif
+
     disable_raw_mode();
 
     // 게임 오버 메시지
@@ -360,7 +403,8 @@ void disable_raw_mode(void)
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 }
 
-void draw_table(void) {
+void draw_table(void)
+{
     int i, j;
     // 1) 고스트 y 계산
     int ghost_y = compute_ghost_y();
@@ -369,18 +413,23 @@ void draw_table(void) {
     printf("\033[H");
     printf("\t\t\t");
 
-    for (i = 0; i < 21; i++) {
-        for (j = 0; j < 10; j++) {
+    for (i = 0; i < 21; i++)
+    {
+        for (j = 0; j < 10; j++)
+        {
             // (가) 먼저 고정 블록(3)과 벽/바닥(1)은 그대로 출력
-            if (tetris_table[i][j] == 1) {
+            if (tetris_table[i][j] == 1)
+            {
                 // 벽/바닥
                 printf("🔲");
             }
-            else if (tetris_table[i][j] == 3) {
+            else if (tetris_table[i][j] == 3)
+            {
                 // 이미 고정된 블록
                 printf("⬜");
             }
-            else {
+            else
+            {
                 // (나) 빈 칸일 때, 고스트와 겹치는지 확인
                 int printed = 0;
 
@@ -388,13 +437,17 @@ void draw_table(void) {
                 char (*shape)[4] = (*blocks[block_number])[block_state];
                 // 블록의 4×4 셀 중, i와 j가 고스트 위치의 블록 셀인지 확인
                 // 고스트가 y = ghost_y이고, x = x 이므로
-                for (int bi = 0; bi < 4 && !printed; bi++) {
-                    for (int bj = 0; bj < 4; bj++) {
-                        if (shape[bi][bj]) {
+                for (int bi = 0; bi < 4 && !printed; bi++)
+                {
+                    for (int bj = 0; bj < 4; bj++)
+                    {
+                        if (shape[bi][bj])
+                        {
                             int gi = ghost_y + bi;
                             int gj = x + bj;
-                            if (gi == i && gj == j) {
-                                // (i, j)가 고스트가 찍힐 자리라면 🟪 찍기
+                            if (gi == i && gj == j)
+                            {
+                                // (i, j)가 고스트가 찍힐 자리면
                                 printf("🟪");
                                 printed = 1;
                                 break;
@@ -402,16 +455,19 @@ void draw_table(void) {
                         }
                     }
                 }
-                if (printed) {
+                if (printed)
+                {
                     continue;
                 }
 
                 // (다) 그 외: 현재 낙하 중인 블록(값 2)은 기존대로 🔳
-                if (tetris_table[i][j] == 2) {
+                if (tetris_table[i][j] == 2)
+                {
                     printf("🔳");
                 }
                 // 그냥 빈 칸이면 검정 배경(⬛)으로 출력
-                else {
+                else
+                {
                     printf("⬛");
                 }
             }
@@ -448,7 +504,7 @@ void init_table(void)
     }
 }
 
-void spawn_block(void)
+void set_random_block(void)
 {
     block_number = next_block_number;
     next_block_number = rand() % 7;
@@ -576,7 +632,7 @@ void lock_block(void)
         }
     }
     clear_lines(); // 줄이 완성됐는지 확인 후 삭제
-    spawn_block(); // 다음 블록 생성
+    set_random_block(); // 다음 블록 생성
     if (is_collision(y, x, block_state))
     {
         // 새로 생성된 블록이 바로 충돌한다면 → 게임 오버
@@ -626,6 +682,12 @@ void clear_lines(void)
 
 int get_key(void)
 {
+#ifdef _WIN32
+    if (_kbhit()) {
+        return _getch();
+    }
+    return -1;
+#else
     char c;
     int n = read(STDIN_FILENO, &c, 1);
     if (n == 1)
@@ -633,6 +695,7 @@ int get_key(void)
         return (int)c;
     }
     return -1;
+#endif
 }
 
 void process_key(int key)
@@ -669,7 +732,7 @@ void process_key(int key)
         game = GAME_END;
     }
 }
-
+#ifndef _WIN32
 /* SIGALRM 시그널 핸들러 */
 void alarm_handler(int signum)
 {
@@ -698,6 +761,7 @@ void stop_timer(void)
     timer.it_interval.tv_usec = 0;
     setitimer(ITIMER_REAL, &timer, NULL);
 }
+#endif
 
 void save_result(void)
 {
@@ -801,35 +865,29 @@ int display_menu(void)
 
 void press_any_key(void)
 {
+#ifdef _WIN32
+    /* Windows: _getch() 한 번 호출해서 키 입력 대기 */
+    printf("\n\t\t\tPress any key to continue...");
+    fflush(stdout);
+    _getch();   // Enter 없이 바로 리턴
+#else
     struct termios oldt, raw;
-
-    // 1) 현재 터미널 설정을 가져와서 저장
     tcgetattr(STDIN_FILENO, &oldt);
 
-    // 2) raw 모드 설정 복사본 생성
     raw = oldt;
-    //    ICANON을 끄면 입력 버퍼링(엔터 대기)이 해제되고,
-    //    ECHO를 끄면 키를 누를 때 화면에 출력되지 않음
     raw.c_lflag &= ~(ICANON | ECHO);
-    raw.c_cc[VMIN] = 1; // 최소 1글자만 읽어도 바로 리턴
-    raw.c_cc[VTIME] = 0; // 타임아웃 없음(무한 대기)
-
-    // 3) 터미널을 raw 모드로 변경
+    raw.c_cc[VMIN] = 1;
+    raw.c_cc[VTIME] = 0;
     tcsetattr(STDIN_FILENO, TCSANOW, &raw);
 
-    // 4) 사용자에게 메시지 출력
     printf("\n\t\t\tPress any key to continue...");
     fflush(stdout);
 
-    // 5) 한 글자만 읽어오기 (엔터 없이 바로 리턴)
     char ch = 0;
     read(STDIN_FILENO, &ch, 1);
 
-    // 6) 원래 설정으로 복구
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-
-    // (원하는 경우 눌린 키에 따라 추가 동작을 해도 되고,
-    //   여기서는 단순히 아무 키나 누르면 빠져나오도록 함.)
+#endif
 }
 
 void search_result(void)
@@ -984,10 +1042,12 @@ char get_next_block_char()
 }
 
 // (현재 블록이 충돌 직전에 멈출 y 좌표를 반환)
-int compute_ghost_y(void) {
+int compute_ghost_y(void)
+{
     int test_y = y;
     // 충돌이 발생할 때까지 y를 한 칸씩 내린다.
-    while (!is_collision(test_y + 1, x, block_state)) {
+    while (!is_collision(test_y + 1, x, block_state))
+    {
         test_y++;
     }
     return test_y;
