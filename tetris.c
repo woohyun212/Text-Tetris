@@ -230,14 +230,14 @@ void disable_raw_mode(void); // 터미널 입력 모드 canonical
 void init_table(void); // 게임보드 초기화
 void draw_table(void); // 게임보드 그리기
 void clear_screen(void); // 화면 지우기
-void set_random_block(void); //
-void place_block(void);
-void remove_block(void);
-int is_collision(int newY, int newX, int newState);
-void move_left(void);
+void set_random_block(void); // 블럭 랜던 설정
+void place_block(void); // 블럭 놓기
+void remove_block(void); // 블럭 지우기
+int is_collision(int newY, int newX, int newState); // 충돌 판정
+void move_left(void);  // 블럭 이동
 void move_right(void);
 void move_down(void);
-void rotate_block(void);
+void rotate_block(void); // 회전
 void clear_lines(void); // 줄 지우기
 void lock_block(void); // 블럭 놓기
 int get_key(void);
@@ -430,23 +430,21 @@ void draw_table(void)
     {
         for (j = 0; j < 10; j++)
         {
-            // (가) 먼저 고정 블록(3)과 벽/바닥(1)은 그대로 출력
+            //  먼저 고정 블록(3)과 벽/바닥(1)은 그대로 출력
             if (tetris_table[i][j] == 1)
             {
-                // 벽/바닥
                 printf("🔲");
             }
             else if (tetris_table[i][j] == 3)
             {
-                // 이미 고정된 블록
                 printf("⬜");
             }
             else
             {
-                // (나) 빈 칸일 때, 고스트와 겹치는지 확인
+                // 빈 칸일 때, 고스트와 겹치는지 확인
                 int printed = 0;
 
-                // 고스트 블록도 4×4 기준이므로, 블록 모양 배열을 참조
+                // 고스트 블록은 블록 모양 참조
                 char (*shape)[4] = (*blocks[block_number])[block_state];
                 // 블록의 4×4 셀 중, i와 j가 고스트 위치의 블록 셀인지 확인
                 // 고스트가 y = ghost_y이고, x = x 이므로
@@ -473,12 +471,12 @@ void draw_table(void)
                     continue;
                 }
 
-                // (다) 그 외: 현재 낙하 중인 블록(값 2)은 기존대로 🔳
+                // 현재 낙하 중인 블록
                 if (tetris_table[i][j] == 2)
                 {
                     printf("🔳");
                 }
-                // 그냥 빈 칸이면 검정 배경(⬛)으로 출력
+                // 빈칸
                 else
                 {
                     printf("⬛");
@@ -510,7 +508,7 @@ void init_table(void)
         tetris_table[i][0] = 1; // 왼쪽 벽
         tetris_table[i][9] = 1; // 오른쪽 벽
     }
-    // 바닥(가장 아래 행, 1) 설정
+    // 바닥(1) 설정
     for (j = 0; j < 10; j++)
     {
         tetris_table[20][j] = 1;
@@ -526,7 +524,7 @@ void set_random_block(void)
     y = 0;
 }
 
-/* 현재 블록을 테트리스판에 표시(값 2) */
+// 현재 블록을 테트리스판에 표시
 void place_block(void)
 {
     int i, j;
@@ -543,7 +541,7 @@ void place_block(void)
     }
 }
 
-/* 현재 블록을 테트리스판에서 지우기(값 0) */
+// 현재 블록을 테트리스판에서 지우기
 void remove_block(void)
 {
     int i, j;
@@ -572,7 +570,7 @@ int is_collision(int newY, int newX, int newState)
             {
                 int ty = newY + i;
                 int tx = newX + j;
-                // 테이블 경계(인덱스) 벗어나면 충돌
+                // 테이블 경계 벗어나면 충돌
                 if (ty < 0 || ty >= 21 || tx < 0 || tx >= 10) return 1;
                 // 벽(1) 또는 고정 블록(3)에 닿으면 충돌
                 if (tetris_table[ty][tx] == 1 || tetris_table[ty][tx] == 3) return 1;
@@ -612,7 +610,7 @@ void move_down(void)
     }
     else
     {
-        // 더 아래로 못 가면 잠금(lock)
+        // 더 아래로 못 가면 고정
         place_block(); // 다시 표시
         lock_block();
     }
@@ -644,16 +642,17 @@ void lock_block(void)
             }
         }
     }
-    clear_lines(); // 줄이 완성됐는지 확인 후 삭제
+    clear_lines(); // 위에서부터 줄이 완성됐는지 확인 후 삭제
     set_random_block(); // 다음 블록 생성
     if (is_collision(y, x, block_state))
     {
-        // 새로 생성된 블록이 바로 충돌한다면 → 게임 오버
+        // 블럭이 생성하자마자 충돌하면 게임 오버
         game = GAME_END;
     }
     else
     {
         place_block(); // 새 블록 화면에 표시
+        point += 25; // 블럭 놓는데 성공하면 25점
     }
 }
 
@@ -683,12 +682,12 @@ void clear_lines(void)
                     tetris_table[r][col] = tetris_table[r - 1][col];
                 }
             }
-            // 맨 위 행은 모두 0(빈칸)으로 초기화, 벽/바닥은 그대로 놔둠
+            // 맨 위 행은 모두 빈칸(0)으로 초기화, 벽/바닥은 그대로 놔둠
             for (col = 1; col < 9; col++)
             {
                 tetris_table[0][col] = 0;
             }
-            point += 100; // 한 줄 삭제 시 점수 추가 (임의로 100점)
+            point += 100; // 한 줄 삭제 시 점수 추가
         }
     }
 }
@@ -749,7 +748,7 @@ void process_key(int key)
 /* SIGALRM 시그널 핸들러 */
 void alarm_handler(int signum)
 {
-    // 블록을 아래로 한 칸 이동시키거나, 충돌 시 고정
+    // 주기마다, 블록 내리기
     move_down();
     draw_table();
 }
@@ -821,7 +820,7 @@ void save_result(void)
                     results[i].year, results[i].month, results[i].day,
                     results[i].hour, results[i].min);
         }
-        // 내 순위 출력, 1+i(기존 인덱스) = 순위
+        // 내 순위 출력, 순위 = 1 + i (기존 인덱스)
         fprintf(fp, "%d\t%s\t%ld\t%04d\t%02d\t%02d\t%02d\t%02d\n",
                 i + 1, temp_result.name, temp_result.point,
                 temp_result.year, temp_result.month, temp_result.day,
@@ -867,7 +866,7 @@ int display_menu(void)
             int c;
             while ((c = getchar()) != '\n' && c != EOF)
             {
-                ; // 남은 입력 버리기
+                ; // 남은 입력 버퍼 버리기
             }
             printf("Wrong Input. Please enter right number in 1~4.\n");
             press_any_key();
@@ -1058,7 +1057,7 @@ char get_next_block_char()
 int compute_ghost_y(void)
 {
     int test_y = y;
-    // 충돌이 발생할 때까지 y를 한 칸씩 내린다.
+    // 충돌이 발생할 때까지 y를 한 칸씩 내림
     while (!is_collision(test_y + 1, x, block_state))
     {
         test_y++;
