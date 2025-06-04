@@ -321,10 +321,22 @@ int game_start(void)
     draw_table();
 
 #ifndef _WIN32
+    // 4) 타이머 설정
     init_timer();
-    usleep(50 * 1000);
+    // 5) 메인 루프
+    while (game == GAME_START)
+    {
+        int key = get_key();
+        if (key != -1)
+        {
+            process_key(key);
+            draw_table();
+        }
+        // 짧은 usleep으로 CPU 사용률 낮추기
+        usleep(50 * 1000); // 50ms
+    }
 #else
-            // Windows용 타이머: 마지막으로 블록을 내린 시점(ms 단위)
+    // Windows용 타이머: 마지막으로 블록을 내린 시점(ms 단위)
     DWORD lastFall = GetTickCount();
     const DWORD fallInterval = 500;  // 500ms마다 자동 낙하
 
@@ -357,6 +369,7 @@ int game_start(void)
 
 
 #ifndef _WIN32
+    // 6) 게임 종료 처리
     stop_timer();
 #endif
 
