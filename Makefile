@@ -32,13 +32,15 @@ ifeq ($(HOST_OS),Windows)
 
   # 실행 파일 이름만 ".exe"로 붙이기 위해 TARGET 재정의
   TARGET := tetris.exe
-
+  REMOVE_CMD := del
 else ifeq ($(HOST_OS),macOS)
   # macOS 전용 설정
   TARGET=tetris
+  REMOVE_CMD := rm
 else ifeq ($(HOST_OS),Linux)
   # Linux 전용 설정
   TARGET=tetris
+  REMOVE_CMD := rm
 endif
 
 .PHONY: all clean
@@ -49,5 +51,4 @@ $(TARGET): $(SRC)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 clean:
-
-	-del $(TARGET)
+	-$(REMOVE_CMD) $(TARGET)
