@@ -35,13 +35,11 @@
 #define DOWN 2
 #define ROTATE 3
 
-
 /* 블록 모양 */
 #define I_BLOCK 0
 #define	T_BLOCK 1
 #define S_BLOCK 2
 #define Z_BLOCK 3
-
 
 #define L_BLOCK 4
 #define J_BLOCK 5
@@ -66,6 +64,10 @@
  * 4*4*4 배열의 3차원 배열
  */
 
+char null_block[4][4][4] =
+{{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+{},{},{}
+};
 
 char i_block[4][4][4] =
 {
@@ -200,7 +202,8 @@ long point = 0; /* 현재 점수*/
 
 /* 터미널 입출력 제어를 위한 원래 터미널 설정 저장 */
 struct termios orig_termios;
-
+int hold_block_number = 7;     // hold된 블록 번호
+int hold_used_in_turn = 0;      // 한 턴에 한 번만 hold 허용
 
 #ifdef _WIN32
 /* Windows 환경에서는 타이머 관련 변수가 필요 없으므로 선언하지 않음. */
@@ -213,8 +216,8 @@ void stop_timer(void);
 
 #endif
 /* 블록 모양 포인터 배열로 묶어 두기 */
-char (*blocks[7])[4][4][4] = {
-    &i_block, &t_block, &s_block, &z_block, &l_block, &j_block, &o_block
+char (*blocks[8])[4][4][4] = {
+    &i_block, &t_block, &s_block, &z_block, &l_block, &j_block, &o_block, &null_block
 };
 
 
@@ -256,7 +259,7 @@ struct result* load_results(void);
 
 char get_next_block_char(void);
 int compute_ghost_y(void);
-
+void hold_block(void);
 
 /// 테트리스 게임 메인 함수
 /// 메뉴를 표시하고 사용자의 선택에 따라 게임을 시작하거나 결과를 검색하거나 종료합니다.
@@ -424,8 +427,40 @@ void draw_table(void)
 
     // 2) 커서 맨 위로 이동
     printf("\033[H");
-    printf("\t\t\t");
+    // 점수 등 정보 출력
+    printf("\t\t\tBest Score: %ld Score: %ld\n", best_point, point);
+    printf("\t\t\tNext Block | Hold block\n");
+    char (*next_shape)[4] = (*blocks[next_block_number])[0];
+    char (*hold_shape)[4] = (*blocks[hold_block_number])[0];
 
+
+    for (int ni = 0; ni < 4; ni++) {
+        printf("\t\t\t");
+        for (int nj = 0; nj < 4; nj++) {
+            if (next_shape[ni][nj]) {
+                printf("🟨");
+            } else {
+                printf("⬛");
+            }
+        }
+        printf("🔲🔲");
+        for (int hj = 0; hj < 4; hj++) {
+            if (hold_shape[ni][hj]) {
+                printf("🟩");
+            } else {
+                printf("⬛");
+            }
+        }
+        printf("\n");
+    }
+
+
+    printf("\t\t\t");
+    for (j = 0; j < 10; j++)
+    {
+        printf("🔲");
+    }
+    printf("\n\t\t\t");
     for (i = 0; i < 21; i++)
     {
         for (j = 0; j < 10; j++)
@@ -485,10 +520,6 @@ void draw_table(void)
         }
         printf("\n\t\t\t");
     }
-
-    // 점수 등 정보 출력
-    printf("\n\t\t\tScore: %ld   Next: %c\n", point, get_next_block_char());
-    printf("\t\t\tBest Score: %ld\n", best_point);
 }
 
 void init_table(void)
@@ -654,6 +685,8 @@ void lock_block(void)
         place_block(); // 새 블록 화면에 표시
         point += 25; // 블럭 놓는데 성공하면 25점
     }
+    // 블록이 완전히 고정된 후에는 hold 다시 가능
+    hold_used_in_turn = 0;
 }
 
 void clear_lines(void)
@@ -742,6 +775,11 @@ void process_key(int key)
     else if (key == 'p' || key == 'P')
     {
         game = GAME_END;
+    }
+
+    else if (key == 's' || key == 'S')
+    {
+        hold_block();
     }
 }
 #ifndef _WIN32
@@ -1063,4 +1101,28 @@ int compute_ghost_y(void)
         test_y++;
     }
     return test_y;
+}
+
+void hold_block(void)
+{
+    if (hold_used_in_turn) return;  // 한 턴에 1회만 허용
+    remove_block();  // 현재 블록 제거
+    int temp = block_number;
+
+    if (hold_block_number == 7) {
+        // 처음 hold
+        hold_block_number = block_number;
+        set_random_block();  // next -> 현재로, 다음 블록 갱신
+    } else {
+        // 교체
+        block_number = hold_block_number;
+        hold_block_number = temp;
+    }
+
+    // 블록 상태 및 위치 초기화
+    block_state = 0;
+    x = 3;
+    y = 0;
+    place_block();
+    hold_used_in_turn = 1;
 }
