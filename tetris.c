@@ -12,11 +12,11 @@
     #include <conio.h>
     #define CLEAR_SCREEN_CMD "cls"
 #else
-    #include <termios.h>
-    #include <unistd.h>
-    #include <signal.h>
-    #include <sys/time.h>
-    #define CLEAR_SCREEN_CMD "clear"
+#include <termios.h>
+#include <unistd.h>
+#include <signal.h>
+#include <sys/time.h>
+#define CLEAR_SCREEN_CMD "clear"
 #endif
 // #include <sys/ioctl.h>
 // #include <sys/types.h>
@@ -65,28 +65,17 @@
  */
 
 char null_block[4][4][4] =
-{{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
-{},{},{}
+{
+    {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+    {}, {}, {}
 };
 
 char i_block[4][4][4] =
 {
-    {
-        // 첫 번째 회전 상태
-        {1, 1, 1, 1}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}
-    },
-    {
-        // 두 번째 회전 상태
-        {0, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 0, 1}
-    },
-    {
-        // 세 번째 회전 상태
-        {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {1, 1, 1, 1}
-    },
-    {
-        // 네 번째 회전 상태
-        {1, 0, 0, 0}, {1, 0, 0, 0}, {1, 0, 0, 0}, {1, 0, 0, 0}
-    }
+    {{1, 1, 1, 1}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+    {{0, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 0, 1}},
+    {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {1, 1, 1, 1}},
+    {{1, 0, 0, 0}, {1, 0, 0, 0}, {1, 0, 0, 0}, {1, 0, 0, 0}}
 };
 
 char t_block[4][4][4] =
@@ -126,33 +115,10 @@ char l_block[4][4][4] =
 
 char j_block[4][4][4] =
 {
-    {
-        {0, 1, 0, 0},
-        {0, 1, 0, 0},
-        {1, 1, 0, 0},
-        {0, 0, 0, 0}
-    },
-
-    {
-        {1, 0, 0, 0},
-        {1, 1, 1, 0},
-        {0, 0, 0, 0},
-        {0, 0, 0, 0}
-    },
-
-    {
-        {1, 1, 0, 0},
-        {1, 0, 0, 0},
-        {1, 0, 0, 0},
-        {0, 0, 0, 0}
-    },
-
-    {
-        {1, 1, 1, 0},
-        {0, 0, 1, 0},
-        {0, 0, 0, 0},
-        {0, 0, 0, 0}
-    }
+    {{0, 1, 0, 0}, {0, 1, 0, 0}, {1, 1, 0, 0}, {0, 0, 0, 0}},
+    {{1, 0, 0, 0}, {1, 1, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+    {{1, 1, 0, 0}, {1, 0, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}},
+    {{1, 1, 1, 0}, {0, 0, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}
 };
 
 
@@ -202,8 +168,8 @@ long point = 0; /* 현재 점수*/
 
 /* 터미널 입출력 제어를 위한 원래 터미널 설정 저장 */
 struct termios orig_termios;
-int hold_block_number = 7;     // hold된 블록 번호
-int hold_used_in_turn = 0;      // 한 턴에 한 번만 hold 허용
+int hold_block_number = 7; // hold된 블록 번호
+int hold_used_in_turn = 0; // 한 턴에 한 번만 hold 허용
 
 #ifdef _WIN32
 /* Windows 환경에서는 타이머 관련 변수가 필요 없으므로 선언하지 않음. */
@@ -237,7 +203,7 @@ void set_random_block(void); // 블럭 랜던 설정
 void place_block(void); // 블럭 놓기
 void remove_block(void); // 블럭 지우기
 int is_collision(int newY, int newX, int newState); // 충돌 판정
-void move_left(void);  // 블럭 이동
+void move_left(void); // 블럭 이동
 void move_right(void);
 void move_down(void);
 void rotate_block(void); // 회전
@@ -245,7 +211,6 @@ void clear_lines(void); // 줄 지우기
 void lock_block(void); // 블럭 놓기
 int get_key(void);
 void process_key(int key);
-
 
 
 void save_result(void);
@@ -434,20 +399,29 @@ void draw_table(void)
     char (*hold_shape)[4] = (*blocks[hold_block_number])[0];
 
 
-    for (int ni = 0; ni < 4; ni++) {
+    for (int ni = 0; ni < 4; ni++)
+    {
         printf("\t\t\t");
-        for (int nj = 0; nj < 4; nj++) {
-            if (next_shape[ni][nj]) {
+        for (int nj = 0; nj < 4; nj++)
+        {
+            if (next_shape[ni][nj])
+            {
                 printf("🟨");
-            } else {
+            }
+            else
+            {
                 printf("⬛");
             }
         }
         printf("🔲🔲");
-        for (int hj = 0; hj < 4; hj++) {
-            if (hold_shape[ni][hj]) {
+        for (int hj = 0; hj < 4; hj++)
+        {
+            if (hold_shape[ni][hj])
+            {
                 printf("🟩");
-            } else {
+            }
+            else
+            {
                 printf("⬛");
             }
         }
@@ -472,7 +446,7 @@ void draw_table(void)
             }
             else if (tetris_table[i][j] == 3)
             {
-                printf("⬜");
+                printf("⬜️");
             }
             else
             {
@@ -520,6 +494,9 @@ void draw_table(void)
         }
         printf("\n\t\t\t");
     }
+    printf("A: Drop, S: Hold, P: Game Stop\n\t\t\t");
+    printf("I: Rotate, K: Down\n\t\t\t");
+    printf("J: Move Left, L: Move Right\n");
 }
 
 void init_table(void)
@@ -1105,15 +1082,18 @@ int compute_ghost_y(void)
 
 void hold_block(void)
 {
-    if (hold_used_in_turn) return;  // 한 턴에 1회만 허용
-    remove_block();  // 현재 블록 제거
+    if (hold_used_in_turn) return; // 한 턴에 1회만 허용
+    remove_block(); // 현재 블록 제거
     int temp = block_number;
 
-    if (hold_block_number == 7) {
+    if (hold_block_number == 7)
+    {
         // 처음 hold
         hold_block_number = block_number;
-        set_random_block();  // next -> 현재로, 다음 블록 갱신
-    } else {
+        set_random_block(); // next -> 현재로, 다음 블록 갱신
+    }
+    else
+    {
         // 교체
         block_number = hold_block_number;
         hold_block_number = temp;
