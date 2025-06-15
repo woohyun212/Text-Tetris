@@ -18,8 +18,8 @@
 #include <sys/time.h>
 #define CLEAR_SCREEN_CMD "clear"
 #endif
-// #include <sys/ioctl.h>
-// #include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/types.h>
 // 굳이 필요한가.
 
 /* 타이머  */
@@ -226,12 +226,17 @@ char get_next_block_char(void);
 int compute_ghost_y(void);
 void hold_block(void);
 
-/// 테트리스 게임 메인 함수
-/// 메뉴를 표시하고 사용자의 선택에 따라 게임을 시작하거나 결과를 검색하거나 종료합니다.
-/// @param
-/// @return
+void get_terminal_size(int* rows, int* cols);
+int is_terminal_size_sufficient(void);
+
+
 int main(void)
 {
+    while (!is_terminal_size_sufficient())
+    {
+        clear_screen();
+    }
+
 #ifdef _WIN32
         // Windows 콘솔을 UTF-8(65001)로 설정 (복구 코드 제거)
     SetConsoleOutputCP(CP_UTF8);
@@ -1105,4 +1110,52 @@ void hold_block(void)
     y = 0;
     place_block();
     hold_used_in_turn = 1;
+}
+
+void get_terminal_size(int* rows, int* cols)
+{
+#ifdef _WIN32
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    HANDLE hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (GetConsoleScreenBufferInfo(hStdout, &csbi)) {
+        *cols = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+        *rows = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+    } else {
+        *rows = 24;
+        *cols = 80;
+    }
+#else
+    struct winsize w;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1)
+    {
+        *rows = 24; // fallback
+        *cols = 80;
+    }
+    else
+    {
+        *rows = w.ws_row;
+        *cols = w.ws_col;
+    }
+#endif
+}
+
+int is_terminal_size_sufficient(void)
+{
+    int rows, cols;
+    get_terminal_size(&rows, &cols);
+
+    // 요구되는 최소 크기
+    const int MIN_ROWS = 35;
+    const int MIN_COLS = 60;
+
+    if (rows < MIN_ROWS || cols < MIN_COLS)
+    {
+        printf("\n\t\t\t[!] Terminal window is too small.\n");
+        printf("\t\t\tMinimum required size: %d × %d\n", MIN_ROWS, MIN_COLS);
+        printf("\t\t\tCurrent size: %d × %d\n", rows, cols);
+        printf("\t\t\tPlease resize the terminal window.\n");
+        return 0;
+    }
+
+    return 1; // 충분한 크기
 }
