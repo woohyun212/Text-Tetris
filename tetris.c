@@ -415,7 +415,7 @@ void draw_table(void)
             }
             else
             {
-                printf("⬛");
+                printf("  ");
             }
         }
         printf("🔲🔲");
@@ -427,7 +427,7 @@ void draw_table(void)
             }
             else
             {
-                printf("⬛");
+                printf("  ");
             }
         }
         printf("\n");
@@ -451,7 +451,7 @@ void draw_table(void)
             }
             else if (tetris_table[i][j] == 3)
             {
-                printf("⬜️");
+                printf("⬜");
             }
             else
             {
@@ -493,7 +493,7 @@ void draw_table(void)
                 // 빈칸
                 else
                 {
-                    printf("⬛");
+                    printf("  ");
                 }
             }
         }
