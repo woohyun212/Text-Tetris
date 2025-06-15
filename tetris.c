@@ -16,11 +16,11 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/time.h>
+#include <sys/ioctl.h>
+// #include <sys/types.h>
+// 굳이 필요한가.
 #define CLEAR_SCREEN_CMD "clear"
 #endif
-#include <sys/ioctl.h>
-#include <sys/types.h>
-// 굳이 필요한가.
 
 /* 타이머  */
 #define CCHAR 0
